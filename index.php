@@ -1,4 +1,7 @@
 <?php    
+/**
+ * Simple class to represent directory containing photos
+ */
 class Album
 {
     public $path = '';
@@ -7,17 +10,34 @@ class Album
     public $thumbsDir;
     public $mediumDir; 
     
-    public function __construct(SplFileInfo $fileInfo, $forceCreate = false) 
+    /**
+     *
+     * @param SplFileInfo|string $fileInfo
+     * @param boolean $forceCreate 
+     */
+    public function __construct($fileInfo, $forceCreate = false)         
     {
+        if (!$fileInfo instanceOf SplFileInfo) {
+            $fileInfo = new SplFileInfo($fileInfo);
+        }
         $this->path = $fileInfo->getRealPath();
         $this->name = $fileInfo->getFilename();
         $this->index($forceCreate);
     }
+    
+    /**
+     * Get a directory iterator for the albums directory
+     * @return \DirectoryIterator 
+     */
     public function getIterator() 
     {
         return new DirectoryIterator($this->path);
     }
     
+    /**
+     * Check that the thumbnail directories exist, if not create them
+     * @return boolean 
+     */
     protected function checkThumbDirs()
     {
         $createThumbs = false;   
@@ -35,6 +55,11 @@ class Album
         return $createThumbs;
     }
     
+    /**
+     * Got through the directory and find all the jpgs. If there are no thumbnails then create them
+     * 
+     * @param type $forceCreate 
+     */
     public function index($forceCreate = false) 
     {
         $createThumbs = $this->checkThumbDirs() || $forceCreate;       
@@ -52,13 +77,20 @@ class Album
             if ($createThumbs) {                
                 foreach($pics as $pic) {
                     $this->createThumb($pic->getRealPath(), $this->thumbsDir . '/' . $pic->getFileName());
-                    $this->createThumb($pic->getPath(), $this->mediumDir . '/' . $pic->getFileName(), 500);
+                    $this->createThumb($pic->getRealPath(), $this->mediumDir . '/' . $pic->getFileName(), 500);
                 }            
             }
             $this->pics = $pics;
         }       
     }
 
+    /**
+     * Resize an image to a certain height keeping the aspect ratio
+     * 
+     * @param string $imgPath
+     * @param string $newPath
+     * @param integer $height 
+     */
     public function createThumb($imgPath, $newPath, $height = '165') 
     {
         $sizes = getimagesize($imgPath);
@@ -86,19 +118,25 @@ class Album
 
 $appDir = __DIR__;
 
+//Allow us to force the recreation of thumbnails
 $forceCreate = false;
 if (array_key_exists('recreate', $_GET)) {
     $forceCreate = true;
 }
 
-$dirIterator = new DirectoryIterator($appDir);
-$albums = array();
-foreach ($dirIterator as $fileInfo) {
-    if ($fileInfo->isDir() && !$fileInfo->isDot() && strpos($fileInfo->getFileName(), '.') !== 0) {         
-        $albums[$fileInfo->getFilename()] = new Album($fileInfo, $forceCreate); 
+//Check if the user wants to view a specific album, otherwise get all albums
+$album = false;
+if (array_key_exists('album', $_GET)) {
+    $album = new Album($appDir . '/' . $_GET['album'], $forceCreate);
+} else {
+    $dirIterator = new DirectoryIterator($appDir);
+    $albums = array();
+    foreach ($dirIterator as $fileInfo) {
+        if ($fileInfo->isDir() && !$fileInfo->isDot() && strpos($fileInfo->getFileName(), '.') !== 0) {         
+            $albums[$fileInfo->getFilename()] = new Album($fileInfo, $forceCreate); 
+        }
     }
 }
-
 ?>
 
 
@@ -108,9 +146,13 @@ foreach ($dirIterator as $fileInfo) {
     <body>
         <?php if (!$album) : ?>
             <?php foreach ($albums as $album) : ?>
-            <a href="?album=<?=$album->name?>"><?= $album->name ?></a><br/>
+                <a href="?album=<?=$album->name?>"><?= $album->name ?></a><br/>
             <?php endforeach; ?>
         <?php else : ?>
+            <?php foreach($album->pics as $pic) : ?>
+                <a href="/<?= $album->name . '/medium/' . $pic->getFileName() ?>">
+                <img src="/<?= $album->name . '/thumbs/' . $pic->getFileName() ?>"/></a><br/>
+            <?php endforeach; ?>
         <?php endif; ?>
     </body>
 </html>
