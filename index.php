@@ -1,46 +1,44 @@
-<?php
-
-    $appDir = __DIR__;
-    $configFile = __DIR__ . '.config.php';
-    $config = false;
-    
-    $dirIterator = new DirectoryIterator($appDir);
-    $albums = array();
-    foreach ($dirIterator as $fileInfo) {
-        if ($fileInfo->isDir() && $fileInfo->getFilename() != '.' && $fileInfo->getFilename() != '..') {         
-            $albums[$fileInfo->getFilename()] = new $album; 
-        }
-    }
-    
+<?php    
 class Album
 {
     public $path = '';
     public $name = '';
     public $pics = array();        
-
-    public function __construct(SplFileInfo $fileInfo) 
+    public $thumbsDir;
+    public $mediumDir; 
+    
+    public function __construct(SplFileInfo $fileInfo, $forceCreate = false) 
     {
-        $path = $fileInfo->getRealPath();
-        $name = $fileInfo->getFilename();
+        $this->path = $fileInfo->getRealPath();
+        $this->name = $fileInfo->getFilename();
+        $this->index($forceCreate);
     }
     public function getIterator() 
     {
         return new DirectoryIterator($this->path);
     }
     
-    public function index() 
+    protected function checkThumbDirs()
     {
-        $createThumbs = false;        
-        $thumbsDir = $this->_album->path . '/' . 'thumbs';
-        $mediumDir = $this->_album->path . '/' . 'medium';            
-        if (!file_exists($thumbsDir)) {
-            mkdir($thumbsDir);
+        $createThumbs = false;   
+        $this->thumbsDir = $this->path . '/' . 'thumbs';
+        $this->mediumDir = $this->path . '/' . 'medium';            
+        if (!file_exists($this->thumbsDir)) {
+            print $this->thumbsDir;
+            mkdir($this->thumbsDir);
             $createThumbs = true; 
         }
-        if (!file_exists($mediumDir)) {
-            mkdir($mediumDir);
+        if (!file_exists($this->mediumDir)) {
+            mkdir($this->mediumDir);
             $createThumbs = true; 
-        }                
+        }      
+        return $createThumbs;
+    }
+    
+    public function index($forceCreate = false) 
+    {
+        $createThumbs = $this->checkThumbDirs() || $forceCreate;       
+                  
         $pics = array();
         foreach($this->getIterator() as $fileInfo) {            
             if ($fileInfo->isFile()) {
@@ -53,15 +51,12 @@ class Album
         if (count($pics)) {
             if ($createThumbs) {                
                 foreach($pics as $pic) {
-                    $this->createThumb($pic->getRealPath(), $thumbsDir . '/' . $pic->getFileName());
-                    $this->createThumb($pic->getPath(), $mediumDir . '/' . $pic->getFileName(), 500);
+                    $this->createThumb($pic->getRealPath(), $this->thumbsDir . '/' . $pic->getFileName());
+                    $this->createThumb($pic->getPath(), $this->mediumDir . '/' . $pic->getFileName(), 500);
                 }            
             }
-            $this->_album->pics = $pics;
+            $this->pics = $pics;
         }       
-        if ($createThumbs) {
-            touch($this->_album->path . '/config.php');
-        }
     }
 
     public function createThumb($imgPath, $newPath, $height = '165') 
@@ -86,5 +81,40 @@ class Album
 
 }
 
+
+
+
+$appDir = __DIR__;
+
+$forceCreate = false;
+if (array_key_exists('recreate', $_GET)) {
+    $forceCreate = true;
+}
+
+$dirIterator = new DirectoryIterator($appDir);
+$albums = array();
+foreach ($dirIterator as $fileInfo) {
+    if ($fileInfo->isDir() && !$fileInfo->isDot() && strpos($fileInfo->getFileName(), '.') !== 0) {         
+        $albums[$fileInfo->getFilename()] = new Album($fileInfo, $forceCreate); 
+    }
+}
+
 ?>
+
+
+<!DOCTYPE HTML>
+<html>
+    <head></head>
+    <body>
+        <?php if (!$album) : ?>
+            <?php foreach ($albums as $album) : ?>
+            <a href="?album=<?=$album->name?>"><?= $album->name ?></a><br/>
+            <?php endforeach; ?>
+        <?php else : ?>
+        <?php endif; ?>
+    </body>
+</html>
+
+
+
 
